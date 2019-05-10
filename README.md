@@ -11,3 +11,8 @@ distributed cache learn.
 
 # ssdb
    (ssdb)[http://ssdb.io/zh_cn/]
+
+# hbase/
+   (hbase)[http://hbase.apache.org/]
+   
+   (cassandra)[http://cassandra.apache.org/]
