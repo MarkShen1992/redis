@@ -129,6 +129,10 @@ man man
 
 用户态 - 内核态 切换
 
+Redis 计算向数据移动
+
+Memcache 数据向计算移动
+
 ## Linux 系统调用分类
 
 ## [微服务架构四大设计原则](https://www.cnblogs.com/guanghe/p/10978349.html)
@@ -630,7 +634,7 @@ OK
   a人
   ```
 
-- 数值
+- 数值(秒杀，详情页)
 
   ```
   127.0.0.1:6379> incr k2
@@ -674,18 +678,367 @@ OK
   127.0.0.1:6379> BITCOUNT k1 1 1 # 第一个字节一共有多少个1
   (integer) 1
   
+  127.0.0.1:6379> help BITPOS
+    BITPOS key bit [start] [end]
+    summary: Find first bit set or clear in a string
+    since: 2.8.7
+    group: string
+  127.0.0.1:6379> BITPOS k1 1 1 1 #在k1中从第一个字节开始，到第一个字节结束，查找bit位为1的的下标
+  (integer) 9
+  
+  127.0.0.1:6379> SETBIT k1 1 1
+  (integer) 0
+  127.0.0.1:6379> SETBIT k1 7 1
+  (integer) 0
+  127.0.0.1:6379> get k1
+  "A"
+  127.0.0.1:6379> SETBIT k2 1 1
+  (integer) 0
+  127.0.0.1:6379> SETBIT k2 6 1
+  (integer) 0
+  127.0.0.1:6379> BITOP and result k1 k2
+  (integer) 1
+  127.0.0.1:6379> get result
+  "@"
+  127.0.0.1:6379> BITOP or result k1 k2
+  (integer) 1
+  127.0.0.1:6379> get result
+  "C"
+  
+  # 用户系统的统计与分析：任意时间窗口，用户登录情况统计
+  解决方案1：建立数据库表维护数据库表
+  解决方案2：使用如下方案来做
+  127.0.0.1:6379> SETBIT mark 1 1 # 第二天登录一次
+  (integer) 0
+  127.0.0.1:6379> SETBIT mark 2 1 # 第三天登录一次
+  (integer) 0
+  127.0.0.1:6379> SETBIT mark 10 1 # 第十一天登录一次
+  (integer) 0
+  127.0.0.1:6379> SETBIT mark 364 1 # 第三百六十五天登录一次
+  (integer) 0
+  127.0.0.1:6379> strlen mark
+  (integer) 46
+  127.0.0.1:6379> BITCOUNT mark 1 -1
+  (integer) 2
+  127.0.0.1:6379> BITCOUNT mark 0 -1 # 双向索引，从左向右(0-length)，从右向左(-1, -2...)
+  (integer) 4
+  问题：如果一个用户一天登录多次怎么表示？
+  
+  # 统计活跃用户 (Java里也有bitmap)
+  127.0.0.1:6379> SETBIT 20200101 1 1 # 20200101 这一天 用户id为1的那个人登录的一次
+  (integer) 0
+  127.0.0.1:6379> SETBIT 20200102 1 1 # 20200102 这一天 用户id为1的那个人登录的一次
+  (integer) 0
+  127.0.0.1:6379> SETBIT 20200102 3 1 # 20200102 这一天 用户id为3的那个人登录的一次
+  (integer) 0
+  127.0.0.1:6379> BITOP or res 20200101 20200102
+  (integer) 1
+  127.0.0.1:6379> BITCOUNT res 0 -1
+  (integer) 2
+  
   ```
 
 ### hash
 
+```
+127.0.0.1:6379> hset mark name shenjy
+(integer) 1
+127.0.0.1:6379> hset mark age 26
+(integer) 1
+127.0.0.1:6379> hset mark address shenyang
+(integer) 1
+127.0.0.1:6379> keys *
+1) "mark"
+2) "list"
+127.0.0.1:6379> hget mark name
+"shenjy"
+127.0.0.1:6379> hget mark age
+"26"
+127.0.0.1:6379> hkeys mark
+1) "name"
+2) "age"
+3) "address"
+127.0.0.1:6379> HVALS mark
+1) "shenjy"
+2) "26"
+3) "shenyang"
+127.0.0.1:6379> HGETALL mark
+1) "name"
+2) "shenjy"
+3) "age"
+4) "26"
+5) "address"
+6) "shenyang"
 
+# 解决问题：详情页
+127.0.0.1:6379> HINCRBY mark age -1 
+(integer) 25
+```
 
 ### list
 
+- 栈（同向命令）
+- 队列（异向命令）
+- 数组
 
+```
+127.0.0.1:6379> lpush list a b c d e f
+(integer) 6
+127.0.0.1:6379> LRANGE list 0 -1
+1) "f"
+2) "e"
+3) "d"
+4) "c"
+5) "b"
+6) "a"
+127.0.0.1:6379> rpush list x
+(integer) 7
+127.0.0.1:6379> LRANGE list 0 -1
+1) "f"
+2) "e"
+3) "d"
+4) "c"
+5) "b"
+6) "a"
+7) "x"
+127.0.0.1:6379> lpop list
+"f"
+127.0.0.1:6379> rpop list
+"x"
+# list 为什么设置方向？-> 同向命令(栈) 异向命令(队列) 数组
+127.0.0.1:6379> LRANGE list 0 -1
+1) "e"
+2) "d"
+3) "c"
+4) "b"
+5) "a"
+127.0.0.1:6379> LINDEX list 3
+"b"
+127.0.0.1:6379> LSET list 3 xxx
+OK
+127.0.0.1:6379> LRANGE list 0 -1
+1) "e"
+2) "d"
+3) "c"
+4) "xxx"
+5) "a"
 
-### set
+127.0.0.1:6379> ltrim list 0 -1
+OK
+127.0.0.1:6379> LRANGE list 0 -1
+1) "e"
+2) "d"
+3) "c"
+4) "xxx"
+5) "a"
 
+# ltrim 删除指定区间以外的东西，评论列表
+127.0.0.1:6379> LRANGE list 0 -1
+1) "e"
+2) "d"
+3) "c"
+4) "xxx"
+5) "a"
+127.0.0.1:6379> LRANGE list 1 -2
+1) "d"
+2) "c"
+3) "xxx"
+127.0.0.1:6379> LRANGE list 0 -1
+1) "e"
+2) "d"
+3) "c"
+4) "xxx"
+5) "a"
+```
 
+### set（无序，不可以重复）
 
-### sorted set
+```
+127.0.0.1:6379> sadd k1 tom xxoo xoxo xoox oxox oxxo ooxx tom
+(integer) 7
+127.0.0.1:6379> SMEMBERS k1
+1) "xoox"
+2) "oxxo"
+3) "oxox"
+4) "ooxx"
+5) "xxoo"
+6) "xoxo"
+7) "tom"
+127.0.0.1:6379> SRANDMEMBER k1 5
+1) "xoox"
+2) "oxxo"
+3) "oxox"
+4) "ooxx"
+5) "xxoo"
+127.0.0.1:6379> SRANDMEMBER k1 10 # 正数不允许重复
+1) "oxox"
+2) "xoox"
+3) "oxxo"
+4) "ooxx"
+5) "xxoo"
+6) "xoxo"
+7) "tom"
+127.0.0.1:6379> SRANDMEMBER k1 0
+(empty list or set)
+127.0.0.1:6379> SRANDMEMBER k1 -5
+1) "oxox"
+2) "xoox"
+3) "xxoo"
+4) "tom"
+5) "oxox"
+127.0.0.1:6379> SRANDMEMBER k1 -10 负数，允许有重复值
+ 1) "ooxx"
+ 2) "xxoo"
+ 3) "ooxx"
+ 4) "tom"
+ 5) "xxoo"
+ 6) "tom"
+ 7) "oxox"
+ 8) "xoox"
+ 9) "xoxo"
+10) "oxxo"
+
+# 解决抽奖的问题，集合里面放人还是放奖品？
+这时候要多问一句，做奖池要把奖品放到redis里的；如果奖品就摆在某个地方，奖品已经买死了，这时候放到redis里的内容就是人。
+一个人一个奖品，一个人多个奖品
+正数某人只能中一次奖，负数某人可以中多次奖。
+
+127.0.0.1:6379> spop k1
+"ooxx"
+127.0.0.1:6379> spop k1
+"oxox"
+127.0.0.1:6379> spop k1
+"tom"
+127.0.0.1:6379> spop k1
+"xoox"
+127.0.0.1:6379> spop k1
+"oxxo"
+127.0.0.1:6379> spop k1
+"xoxo"
+127.0.0.1:6379> spop k1
+"xxoo"
+127.0.0.1:6379> spop k1
+(nil)
+
+127.0.0.1:6379> sadd k1 1 2 3 4 5
+(integer) 5
+127.0.0.1:6379> sadd k2 4 5 6 7 8
+(integer) 5
+127.0.0.1:6379> SINTER k1 k2
+1) "4"
+2) "5"
+127.0.0.1:6379> SUNION k1 k2
+1) "1"
+2) "2"
+3) "3"
+4) "4"
+5) "5"
+6) "6"
+7) "7"
+8) "8"
+127.0.0.1:6379> SUNIONSTORE dest k1 k2
+(integer) 8
+127.0.0.1:6379> SMEMBERS dest
+1) "1"
+2) "2"
+3) "3"
+4) "4"
+5) "5"
+6) "6"
+7) "7"
+8) "8"
+
+# 推荐系统 差集
+127.0.0.1:6379> sadd mark anna kangkang laura iris
+(integer) 4
+127.0.0.1:6379> sadd anna kangkang puma Alice
+(integer) 3
+127.0.0.1:6379> SDIFF mark anna #给anna推荐好友
+1) "iris"
+2) "anna"
+3) "laura"
+127.0.0.1:6379> SDIFF anna mark #给mark推荐好友
+1) "puma"
+2) "Alice"
+
+# 共同兴趣 交集
+```
+
+### sorted set（去重，有序）
+
+```
+# 元素自己(apple)，排名(3)[根据分值(score)排名]，分值(8)
+127.0.0.1:6379> zadd k1 8 apple 1 banana 5 orange
+(integer) 3
+127.0.0.1:6379> ZRANGE k1 0 -1
+1) "banana"
+2) "orange"
+3) "apple"
+127.0.0.1:6379> ZRANGE k1 0 -1 withscores
+1) "banana"
+2) "1"
+3) "orange"
+4) "5"
+5) "apple"
+6) "8"
+127.0.0.1:6379> ZRANK k1 apple
+(integer) 2
+127.0.0.1:6379> ZSCORE k1 orange
+"5"
+
+# 查询价格由低到高的前两名
+127.0.0.1:6379> ZRANGE k1 0 1
+1) "banana"
+2) "orange"
+
+# 查询售价由高到低的前两名
+127.0.0.1:6379> ZREVRANGE k1 0 1
+1) "apple"
+2) "orange"
+
+# 排行榜
+127.0.0.1:6379> ZRANGE k1 0 -1
+1) "banana"
+2) "orange"
+3) "apple"
+127.0.0.1:6379> ZRANGE k1 0 -1 withscores
+1) "banana"
+2) "1"
+3) "orange"
+4) "5"
+5) "apple"
+6) "8"
+127.0.0.1:6379> ZINCRBY k1 6 banana
+"7"
+127.0.0.1:6379> ZRANGE k1 0 -1
+1) "orange"
+2) "banana"
+3) "apple"
+
+# redis 如何维护有序集合？
+使用skip list来做
+```
+
+> string > list , sorted set > hash, set（排序：字典序，数值序）
+
+## Redis使用场景
+
+- 活跃用户/用户统计
+- 秒杀/抢购
+- 排行榜
+- 评论列表
+- 商品详情页
+- 微博抽奖
+- 推荐系统
+- 随机事件
+- 家庭争端
+
+> 用场景去记忆
+
+## RDB & AOF
+
+## Redis集群：主从哨兵机制
+
+## Redis分片集群
+
+## Redis代理集群
