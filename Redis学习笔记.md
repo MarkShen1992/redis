@@ -657,6 +657,18 @@ OK
 127.0.0.1:6379> TTL k1
 (integer) -1
 
+# sort list
+127.0.0.1:6379> lpush list 1 4 7 9 2 6 3 4
+(integer) 8
+127.0.0.1:6379> sort list
+1) "1"
+2) "2"
+3) "3"
+4) "4"
+5) "4"
+6) "6"
+7) "7"
+8) "9"
 ```
 
 ### string
@@ -1104,10 +1116,61 @@ OK
 
 > 用场景去记忆
 
-## RDB & AOF
+## [RDB & AOF](https://redis.io/topics/persistence)
+
+Redis 有两中方式实现 Redis 断电后的数据恢复。第一种是RDB。什么是RDB呢？Redis Database。这种方式是 Redis 默认的持久化方式。Redis 将内存数据库数据快照保存在二进制文件`dump.rdb`中。当Redis服务器断电重启后，数据不会丢失。Redis server 起来后会读取 `dump.rdb`中的数据到内存中。我们可以以下面的方式来配置 Redis 的备份数据时候的频率。
+
+```
+save <seconds> <changes>
+
+# 即10秒内，发生至少一次变动，则自动保存一次数据快照
+save 10 1
+```
+
+第二种方式：AOF
+
+```
+# AOF 开启方式
+appendonly no => appendonly yes
+
+# 可以配置Redis多久才将数据fsync到磁盘一次。
+appendfsync everysec|always|no
+1）每次有新命令追加到AOF文件时就执行一次fsync：非常慢，但是非常安全，数据一般不会丢。
+2）每秒fsync一次：足够快（和使用 RDB 持久化差不多），并且在故障时只会丢失1秒钟的数据。(推荐)
+3）从不fsync ：将数据交给操作系统来处理。更快，也更不安全的选择。
+
+# 本地数据库文件名
+appendfilename "appendonly.aof"
+
+# 配置重写触发机制
+auto-aof-rewrite-percentage 100
+auto-aof-rewrite-min-size 64mb
+```
+
+混合持久化配置
+
+```
+# RDB
+save 10 1
+# AOF
+appendonly yes
+aof-use-rdb-preamble yes
+
+# 执行命令
+127.0.0.1:6379> BGREWRITEAOF -Asynchronously rewrite the append-only file
+```
 
 ## Redis集群：主从哨兵机制
 
 ## Redis分片集群
 
 ## Redis代理集群
+
+## 拜占庭将军问题
+
+[一致性算法（Paxos、Raft、ZAB）](https://www.bilibili.com/video/av21667358/?spm_id_from=trigger_reload)
+
+[raft算法](https://raft.github.io/)
+
+[Raft: Understandable Distributed Consensus](http://thesecretlivesofdata.com/raft)
+
