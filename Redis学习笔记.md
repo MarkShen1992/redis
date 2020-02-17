@@ -590,6 +590,75 @@ OK
 (empty list or set)
 ```
 
+### generic
+
+```
+127.0.0.1:6379> set k1 hello
+OK
+127.0.0.1:6379> EXISTS k1 -generic
+(integer) 1
+127.0.0.1:6379> DEL k1 -generic
+(integer) 1
+127.0.0.1:6379> EXISTS k1
+(integer) 0
+127.0.0.1:6379> set k1 hello
+OK
+127.0.0.1:6379> DUMP k1 -generic
+"\x00\x05hello\t\x00\xb3\x80\x8e\xba1\xb2C\xbb"
+
+# expire
+127.0.0.1:6379> set k1 10
+OK
+127.0.0.1:6379> EXPIRE k1 6
+(integer) 1
+127.0.0.1:6379> get k1
+"10"
+127.0.0.1:6379> get k1
+"10"
+127.0.0.1:6379> get k1
+"10"
+127.0.0.1:6379> get k1
+(nil)
+
+# move 移动一个 key 到另一个库, select 切换数据库
+127.0.0.1:6379> set k1 a
+OK
+127.0.0.1:6379> get k1
+"a"
+127.0.0.1:6379> MOVE k1 1
+(integer) 1
+127.0.0.1:6379> get k1
+(nil)
+127.0.0.1:6379> select 1
+OK
+127.0.0.1:6379[1]> get k1
+"a"
+
+# redis 默认有16个数据库
+127.0.0.1:6379> select 16
+(error) ERR DB index is out of range
+127.0.0.1:6379> select 15
+OK
+127.0.0.1:6379[15]>
+
+# 给k1加上过期时间，撤销过期时间
+127.0.0.1:6379> set k1 12
+OK
+127.0.0.1:6379> EXPIRE k1 60
+(integer) 1
+127.0.0.1:6379> TTL k1
+(integer) 56
+127.0.0.1:6379> TTL k1
+(integer) 54
+127.0.0.1:6379> TTL k1
+(integer) 14
+127.0.0.1:6379> PERSIST k1
+(integer) 1
+127.0.0.1:6379> TTL k1
+(integer) -1
+
+```
+
 ### string
 
 - 字符串
