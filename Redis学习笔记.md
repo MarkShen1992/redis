@@ -1162,6 +1162,10 @@ aof-use-rdb-preamble yes
 
 ## Redis集群：主从哨兵机制
 
+[Redis集群](https://redis.io/topics/cluster-tutorial)
+
+[Redis Sentinel](https://redis.io/topics/sentinel)
+
 ## Redis分片集群
 
 ## Redis代理集群
