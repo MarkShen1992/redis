@@ -1116,6 +1116,36 @@ OK
 
 > 用场景去记忆
 
+## Pipelining
+
+```
+# 注意：如果系统没有 nc 命令，首先 yum install nc -y 安装下， \r\n 是回车换行
+(printf "PING\r\nPING\r\nPING\r\n"; sleep 1) | nc localhost 7000
+```
+
+## Sub/Pub
+
+```
+# step 01: 消费者订阅 可订阅多个频道
+SUBSCRIBE redisChat
+
+# step 02: 发布者发布
+PUBLISH redisChat "Redis is a great caching technique"
+
+# 补充内容
+# 每个模式以 * 作为匹配符，比如 it* 匹配所有以 it 开头的频道( it.news 、 it.blog 、 it.tweets 等等)
+PSUBSCRIBE pattern [pattern ...] 
+
+# Redis Pubsub 命令用于查看订阅与发布系统状态，它由数个不同格式的子命令组成。
+PUBSUB HELP 查看使用方式
+
+# 退订频道
+PUNSUBSCRIBE HELP
+
+# 作业
+使用 Redis 实现一个小型的消息中间件
+```
+
 ## [RDB & AOF](https://redis.io/topics/persistence)
 
 Redis 有两中方式实现 Redis 断电后的数据恢复。第一种是RDB。什么是RDB呢？Redis Database。这种方式是 Redis 默认的持久化方式。Redis 将内存数据库数据快照保存在二进制文件`dump.rdb`中。当Redis服务器断电重启后，数据不会丢失。Redis server 起来后会读取 `dump.rdb`中的数据到内存中。我们可以以下面的方式来配置 Redis 的备份数据时候的频率。
